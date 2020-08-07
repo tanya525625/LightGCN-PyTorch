@@ -80,7 +80,7 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
     if multicore == 1:
         pool = multiprocessing.Pool(CORES)
     results = {'precision': np.zeros(len(world.topks)),
-               'recall': np.zeros(len(world.topks)),
+               # 'recall': np.zeros(len(world.topks)),
                'ndcg': np.zeros(len(world.topks))}
     with torch.no_grad():
         users = list(testDict.keys())
@@ -93,6 +93,7 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
         groundTrue_list = []
         auc_record = []
         # ratings = []
+        print(testDict)
         total_batch = len(users) // u_batch_size + 1
         for batch_users in utils.minibatch(users, batch_size=u_batch_size):
             allPos = dataset.getUserPosItems(batch_users)
@@ -110,12 +111,12 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
             rating[exclude_index, exclude_items] = -(1<<10)
             _, rating_K = torch.topk(rating, k=max_K)
             rating = rating.cpu().numpy()
-            aucs = [ 
-                    utils.AUC(rating[i],
-                              dataset, 
-                              test_data) for i, test_data in enumerate(groundTrue)
-                ]
-            auc_record.extend(aucs)
+            # aucs = [
+            #         utils.AUC(rating[i],
+            #                   dataset,
+            #                   test_data) for i, test_data in enumerate(groundTrue)
+            #     ]
+            # auc_record.extend(aucs)
             del rating
             users_list.append(batch_users)
             rating_list.append(rating_K.cpu())
@@ -130,16 +131,16 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
                 pre_results.append(test_one_batch(x))
         scale = float(u_batch_size/len(users))
         for result in pre_results:
-            results['recall'] += result['recall']
+            # results['recall'] += result['recall']
             results['precision'] += result['precision']
             results['ndcg'] += result['ndcg']
-        results['recall'] /= float(len(users))
+        # results['recall'] /= float(len(users))
         results['precision'] /= float(len(users))
         results['ndcg'] /= float(len(users))
         results['auc'] = np.mean(auc_record)
         if world.tensorboard:
-            w.add_scalars(f'Test/Recall@{world.topks}',
-                          {str(world.topks[i]): results['recall'][i] for i in range(len(world.topks))}, epoch)
+            # w.add_scalars(f'Test/Recall@{world.topks}',
+            #               {str(world.topks[i]): results['recall'][i] for i in range(len(world.topks))}, epoch)
             w.add_scalars(f'Test/Precision@{world.topks}',
                           {str(world.topks[i]): results['precision'][i] for i in range(len(world.topks))}, epoch)
             w.add_scalars(f'Test/NDCG@{world.topks}',

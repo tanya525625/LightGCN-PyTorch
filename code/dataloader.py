@@ -73,40 +73,36 @@ class LastFM(BasicDataset):
     Incldue graph information
     LastFM dataset
     """
-    def __init__(self, path="../data/lastfm"):
+    def __init__(self, path="../data/skills-predictor"):
+        self.path = path
         # train or test
+        print(self.m_items)
         cprint("loading [last fm]")
         self.mode_dict = {'train':0, "test":1}
         self.mode    = self.mode_dict['train']
-        # self.n_users = 1892
-        # self.m_items = 4489
-        trainData = pd.read_table(join(path, 'data1.txt'), header=None)
+        trainData = pd.read_csv(join(path, 'all_data.csv'))
         # print(trainData.head())
-        testData  = pd.read_table(join(path, 'test1.txt'), header=None)
-        # print(testData.head())
-        trustNet  = pd.read_table(join(path, 'trustnetwork.txt'), header=None).to_numpy()
-        # print(trustNet[:5])
-        trustNet -= 1
-        trainData-= 1
-        testData -= 1
-        self.trustNet  = trustNet
+        testData  = pd.read_csv(join(path, 'test.csv'))
+        users, skills, rates = trainData["user"], trainData["skill"], trainData["rate"]
+        self.UserItemNet = csr_matrix(
+            (rates, (users, skills)),
+            dtype="float32",
+            shape=(self.n_users, self.m_items),
+        )
+        # self.trustNet  = trustNet
         self.trainData = trainData
         self.testData  = testData
-        self.trainUser = np.array(trainData[:][0])
+        self.trainUser = np.array(trainData['user'])
         self.trainUniqueUsers = np.unique(self.trainUser)
-        self.trainItem = np.array(trainData[:][1])
+        self.trainItem = np.array(trainData['skill'])
         # self.trainDataSize = len(self.trainUser)
-        self.testUser  = np.array(testData[:][0])
+        self.testUser  = np.array(testData['user'])
         self.testUniqueUsers = np.unique(self.testUser)
-        self.testItem  = np.array(testData[:][1])
+        self.testItem  = np.array(testData['skill'])
         self.Graph = None
+
         print(f"LastFm Sparsity : {(len(self.trainUser) + len(self.testUser))/self.n_users/self.m_items}")
-        
-        # (users,users)
-        self.socialNet    = csr_matrix((np.ones(len(trustNet)), (trustNet[:,0], trustNet[:,1]) ), shape=(self.n_users,self.n_users))
-        # (users,items), bipartite graph
-        self.UserItemNet  = csr_matrix((np.ones(len(self.trainUser)), (self.trainUser, self.trainItem) ), shape=(self.n_users,self.m_items)) 
-        
+
         # pre-calculate
         self._allPos = self.getUserPosItems(list(range(self.n_users)))
         self.allNeg = []
@@ -119,11 +115,11 @@ class LastFM(BasicDataset):
 
     @property
     def n_users(self):
-        return 1892
+        return len(np.load(os.path.join(self.path, "user2id.npy"), allow_pickle=True))
     
     @property
     def m_items(self):
-        return 4489
+        return len(np.load(os.path.join(self.path, "skill2id.npy"), allow_pickle=True))
     
     @property
     def trainDataSize(self):
@@ -149,8 +145,10 @@ class LastFM(BasicDataset):
             self.Graph = torch.sparse.IntTensor(index, data, torch.Size([self.n_users+self.m_items, self.n_users+self.m_items]))
             dense = self.Graph.to_dense()
             D = torch.sum(dense, dim=1).float()
-            D[D==0.] = 1.
-            D_sqrt = torch.sqrt(D).unsqueeze(dim=0)
+            D[D==0.0] = 1.0
+            D_sqrt = torch.sqrt(D).unsqueeze(dim=0).float()
+            dense  = dense.float()
+            # print(type(D_sqrt.))
             dense = dense/D_sqrt
             dense = dense/D_sqrt.t()
             index = dense.nonzero()
